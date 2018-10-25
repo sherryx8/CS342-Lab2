@@ -8,8 +8,10 @@ import codecs
 s = b"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
 
 def hexTo64(hex):
-    encoded = codecs.encode(codecs.decode(hex, 'hex'), 'base64')
+    #encoded = codecs.encode(codecs.decode(hex, 'hex'), 'base64')
+    encoded = base64.b64encode(codecs.decode(hex, 'hex'))
     return encoded
+
 
 print(hexTo64(s))
 
@@ -223,6 +225,8 @@ def decryptAESECBfromFile(filePath):
     return decryptAESECB( key = b"YELLOW SUBMARINE", ciphertext = bytes(base64.b64decode(ciphertext)))
 
 print(decryptAESECBfromFile("set1challenge7data.txt"))
+
+
 ###############
 # CHALLENGE 8 #
 ###############
