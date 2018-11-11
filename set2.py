@@ -48,8 +48,8 @@ def encryptAESECB(key,plaintext):
     encrypter = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend()).encryptor()
     return encrypter.update(plaintext)
 
-def encryptAESCBCreal(key,plaintext):
-    encrypter = Cipher(algorithms.AES(key), modes.CBC(b"\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00"), backend=default_backend()).encryptor()
+def encryptAESCBCreal(key,plaintext, iv):
+    encrypter = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).encryptor()
     return encrypter.update(plaintext)
 
 def encryptAESCBC(key, plaintext, iv):
@@ -85,7 +85,7 @@ def encryptAESCBCfromFile(filePath, key):
     encryptedFile = open(filePath, 'r')
     plaintext = encryptedFile.read()
     encryptedFile.close()
-    expectedCiphertext = encryptAESCBCreal(key = key, plaintext = pkcs7Padding(bytes(plaintext, 'ascii'), 16))
+    expectedCiphertext = encryptAESCBCreal(key = key, plaintext = pkcs7Padding(bytes(plaintext, 'ascii'), 16), iv = b"\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00")
     print("excpected", expectedCiphertext)
     print(len(expectedCiphertext))
     return encryptAESCBC( key = key, plaintext = bytes(plaintext, 'ascii'), iv = b"\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00")
@@ -425,8 +425,54 @@ print(validatePKCS7Padding(b"ICE\x01", 16)) #invalid
 ################
 
 #function 1 = encryption
+#The first function should take an arbitrary input string, prepend the string:
+
+#"comment1=cooking%20MCs;userdata="
+#.. and append the string:
+
+#";comment2=%20like%20a%20pound%20of%20bacon"
+#The function should quote out the ";" and "=" characters.
+#The function should then pad out the input to the 16-byte AES block length and encrypt it under the random AES key.
+randkey16 = None
+randIV = None
+def commentEncryption(plaintext16):
+    global randkey16
+    global randIV
+    if randkey16 is None:
+        randkey16 = generateRandomKey(16)
+    if randIV is None:
+        randIV = generateRandomKey(16)
+    plaintext16 = plaintext16.replace(";", "';'").replace("=", "'='")
+    plaintext16 = "comment1=cooking%20MCs;userdata=" + plaintext16 + ";comment2=%20like%20a%20pound%20of%20bacon"
+    print(plaintext16)
+    ciphertext = encryptAESCBCreal(randkey16, pkcs7Padding(bytes(plaintext16, 'utf-8'), 16), randIV)
+    return ciphertext
+
+ciphertext16 = commentEncryption(";admin=true;")
+print(ciphertext16)
+
+
 #function 2 = decryption + guard
+def commentDecryption(ciphertext):
+    plaintext = codecs.decode(decryptAESCBC(randkey16, ciphertext, randIV), 'utf-8', 'ignore')
+    admin = (";admin=true;" in plaintext)
+    return plaintext, admin
+
+commentDecryption(ciphertext16)
+
 #function 3 = attacker
+def generateBitFlippedCiphertext():
+    ciphertext = commentEncryption(":admin<true")
+    evilciphertext = bytearray(ciphertext)
+    print(evilciphertext[16])
+    evilciphertext[16] = evilciphertext[16] ^ 1
+    print(evilciphertext[16])
+    evilciphertext[22] = evilciphertext[22] ^1
+    return bytes(evilciphertext)
+
+evilciphertext = generateBitFlippedCiphertext()
+print(evilciphertext[16])
+commentDecryption(evilciphertext)
 
 ################
 # CHALLENGE 17 #
