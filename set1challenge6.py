@@ -43,11 +43,11 @@ def breakRepeatingXOR(encryptedPath):
         for i in range(keysize):
             keybytes = codecs.encode(''.join([chr(encryptedData[ksblocks*keysize+i]) for ksblocks in range(int(len(encryptedData)/keysize))]), 'ascii')
             predictkey += singleByteXORDecode(binascii.hexlify(keybytes))[1]
-        decodedstring = repeatingXOR(codecs.decode(encryptedData, 'ascii'), predictkey)
+        decodedstring = repeatingXOR(encryptedData, bytes(predictkey, 'ascii'))
         decodedstrings.append((str(binascii.unhexlify(decodedstring), 'ascii'), predictkey))
 
     encryptedFile.close()
-    
+
     return max(decodedstrings, key=lambda s: scorePlaintext(s[0]))
 
 def main():
