@@ -7,14 +7,14 @@ import binascii
 
 def pkcs7Padding(text, blocksize):
     textbytes= bytearray(text)
-    padding =  ( blocksize - (len(textbytes) % blocksize)) if ((len(textbytes) % blocksize) is not 0) else 0
+    padding =  ( blocksize - (len(textbytes) % blocksize)) if ((len(textbytes) % blocksize) is not 0) else blocksize
     #print(padding)
     for i in range(padding):
         textbytes.append(padding)
     return bytes(textbytes)
 
-txt = b"YELLOW SUBMARINEKKKKYELLOW SUBMARINEKKKKd"
-blocksize = 20
+txt = b"YELLOW SUBMARINEKKKKYELLOW SUBMARINEKKKK"
+blocksize = 5
 print(pkcs7Padding(txt, blocksize))
 
 ###############
@@ -392,8 +392,8 @@ def findPrependSize(keysize):
     return False
 
 findPrependSize(16)
-print(len(randPrefix))
-print(randPrefix)
+# print(len(randPrefix))
+# print(randPrefix)
 
 byteAtATimeDecryptAESECBUnknownPrepend( unknownstring)
 
@@ -406,18 +406,22 @@ def validatePKCS7Padding(paddedBytes, padlen = 16):
     unpaddedBytes = bytearray(paddedBytes)
     if len(paddedBytes) % padlen is not 0:
         return False
+    elif paddedAmount is 0:
+        return False
     elif paddedAmount <= padlen:
         for i in range(paddedAmount):
             if unpaddedBytes[-1] is not paddedAmount:
                 return False
             else:
                 unpaddedBytes = unpaddedBytes[:-1]
+    else:
+        return False
     return bytes(unpaddedBytes)
 
 print(validatePKCS7Padding(b"ICE ICE BABY\x04\x04\x04\x04"))
-print(validatePKCS7Padding(b"ICE ICE BABY IE\x01", 16))
+print(validatePKCS7Padding(b"\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10", 16))
 print(validatePKCS7Padding(b"ICE ICE BABY\x05\x05\x05\x05", 16)) #invalid
-print(validatePKCS7Padding(b"ICE ICE BABY\x01\x02\x03\x04", 16)) #invalid
+print(validatePKCS7Padding(b"ICE ICE BABYICEC", 16)) #invalid
 print(validatePKCS7Padding(b"ICE\x01", 16)) #invalid
 
 ################
@@ -481,6 +485,83 @@ commentDecryption(evilciphertext)
 #flip bits until padding correct
 #thats how you know the bit
 
+randomStrings = [b"MDAwMDAwTm93IHRoYXQgdGhlIHBhcnR5IGlzIGp1bXBpbmc=",
+                 b"MDAwMDAxV2l0aCB0aGUgYmFzcyBraWNrZWQgaW4gYW5kIHRoZSBWZWdhJ3MgYXJlIHB1bXBpbic=",
+                 b"MDAwMDAyUXVpY2sgdG8gdGhlIHBvaW50LCB0byB0aGUgcG9pbnQsIG5vIGZha2luZw==",
+                 b"MDAwMDAzQ29va2luZyBNQydzIGxpa2UgYSBwb3VuZCBvZiBiYWNvbg==",
+                 b"MDAwMDA0QnVybmluZyAnZW0sIGlmIHlvdSBhaW4ndCBxdWljayBhbmQgbmltYmxl",
+                 b"MDAwMDA1SSBnbyBjcmF6eSB3aGVuIEkgaGVhciBhIGN5bWJhbA==",
+                 b"MDAwMDA2QW5kIGEgaGlnaCBoYXQgd2l0aCBhIHNvdXBlZCB1cCB0ZW1wbw==",
+                 b"MDAwMDA3SSdtIG9uIGEgcm9sbCwgaXQncyB0aW1lIHRvIGdvIHNvbG8=",
+                 b"MDAwMDA4b2xsaW4nIGluIG15IGZpdmUgcG9pbnQgb2g=",
+                 b"MDAwMDA5aXRoIG15IHJhZy10b3AgZG93biBzbyBteSBoYWlyIGNhbiBibG93"]
 
+#The first function should select at random one of the following 10 strings:
+#... generate a random AES key (which it should save for all future encryptions),
+#pad the string out to the 16-byte AES block size and CBC-encrypt it under that key, providing the caller the ciphertext and IV.
 
-#confused
+randkey17 = None
+randIV17 = None
+def encryptRandomString(randomStrings):
+    global randkey17
+    global randIV17
+    randomString = randomStrings[random.randint(0, len(randomStrings)-1)]
+    print(randomString)
+    if randkey17 is None:
+        randkey17 = generateRandomKey(16)
+    if randIV17 is None:
+        randIV17 = generateRandomKey(16)
+    ciphertext = encryptAESCBCreal(randkey17, pkcs7Padding(randomString, 16), randIV17)
+    return ciphertext
+
+ciphertext17 = encryptRandomString(randomStrings)
+print(len(ciphertext17))
+
+#The second function should consume the ciphertext produced by the first function,
+#decrypt it, check its padding, and return true or false depending on whether the padding is valid.
+
+def paddingOracle(ciphertext):
+    plaintext = decryptAESCBC(randkey17, ciphertext, randIV17)
+    return (True if validatePKCS7Padding(plaintext) else False, plaintext)
+
+paddingOracle(ciphertext17)
+
+def decryptCBCWithPaddingOracle(ciphertext):
+    plaintext = []
+    intermediary = []
+    ctarray = bytearray(ciphertext)
+    offset = 1
+    #loop through each byte of ciphertext starting from the back
+    for b in range(len(ciphertext)-16-1, -1, -1):
+        #try each character
+        #print("original", paddingOracle(bytes(ctarray)))
+        if (offset > 16):
+            ctarray = bytearray(ciphertext[:b+18])
+            offset = 1
+            intermediary = []
+
+        for c in range(256):
+            ctarray[b] = c
+            res = paddingOracle(bytes(ctarray))
+            if res[0]:
+                print(b, ctarray)
+                print(b, c, len(res[1]), res[1])
+
+                i2 = c^offset
+                intermediary = [i2] + intermediary
+                print(intermediary)
+                plaintext = [(ciphertext[b]^i2)] + plaintext
+                print("sofar", bytes(plaintext))
+                offset += 1
+                print(offset)
+                for x in range(offset-1):
+                    ctarray[b+x] = intermediary[x]^offset
+                #print(plaintext)
+                #print(char^offset, char)
+                #print("------")
+
+                break;
+
+    return bytes(plaintext)
+
+print(b"????????????????" + decryptCBCWithPaddingOracle(ciphertext17))
