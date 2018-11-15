@@ -33,7 +33,7 @@ def encryptRandomString(randomStrings):
     if randIV17 is None:
         randIV17 = generateRandomKey(16)
     ciphertext = encryptAESCBC(randkey17, randomString, randIV17)
-    return ciphertext
+    return randIV17 + ciphertext
 
 def paddingOracle(ciphertext):
     plaintext = decryptAESCBC(randkey17, ciphertext, randIV17)
@@ -75,7 +75,7 @@ def testall():
         print("expected string:    ", s)
         ciphertext = encryptRandomString([s])
         plaintext = validatePKCS7Padding(decryptCBCWithPaddingOracle(ciphertext))
-        print("partial decryption:                 ", plaintext)
+        print("decrypted string:   ", plaintext)
         res.append((s, plaintext))
     return res
 
